@@ -3,7 +3,8 @@
 
 ;; Definir variables de datos
 (define-data-var owner principal tx-sender)
-(define-data-var registrar-contract principal 'SP3AB2D5A...) ;; Reemplaza con la direccion del contrato registrar
+(define-data-var helPet-contract (optional principal) none)
+(define-data-var registrar-contract (optional principal) none) ;; Variable para registrar
 (define-map posts { id: uint } { owner: principal, reward: uint, found: bool })
 (define-data-var post-counter uint u1)
 
@@ -21,32 +22,16 @@
 (define-read-only (is-owner (user principal))
   (is-eq user (var-get owner)))
 
-;; Asignar la direccion del contrato registrar (solo el owner puede hacerlo)
-(define-public (set-registrar (contract principal))
-  (begin
-    (asserts! (is-eq tx-sender (var-get owner)) (err "Solo el owner puede asignar el contrato"))
-    (var-set registrar-contract contract)
-    (ok "Registrar asignado con exito")
-  )
-)
-
-;; Crear un nuevo post con la recompensa en USDC, solo si el usuario esta registrado
+;; Crear un nuevo post con la recompensa en USDC, solo si el monto es mayor a cero
 (define-public (create-post (reward uint))
   (begin
-    ;; Verificar que la recompensa sea mayor a cero
     (asserts! (> reward u0) (err "El monto de la recompensa debe ser mayor a cero"))
-
-    ;; Verificar que el usuario este registrado como usuario o empresa en el contrato registrar
-    (asserts! (contract-call? (var-get registrar-contract) is-registered tx-sender)
-              (err "El usuario no esta registrado"))
-
-    ;; Obtener el ID y crear el post
     (let ((id (var-get post-counter)))
       (map-set posts { id: id } { owner: tx-sender, reward: reward, found: false })
       (var-set post-counter (+ id u1))
 
       ;; Transferir USDC desde el usuario al contrato
-      (ft-transfer? 'USDC reward tx-sender contract-principal usdc-contract)
+      (ft-transfer? 'USDC reward tx-sender contract-principal usdt-contract)
 
       (ok id)
     )
@@ -61,8 +46,8 @@
     (match post
       some-post
       (begin
-        (asserts! (is-eq tx-sender (get owner some-post)) (err "Solo el dueno del post puede marcar al perro como encontrado"))
         (asserts! (not (get found some-post)) (err "El perro ya fue encontrado"))
+        (asserts! (is-eq tx-sender (get owner some-post)) (err "Solo el dueno del post puede marcar al perro como encontrado"))
 
         ;; Calcular la recompensa y la comision
         (let (
@@ -71,14 +56,18 @@
           (finder-reward (- reward commission))
         )
           ;; Transferir la recompensa y la comision en USDC
-          (ft-transfer? 'USDC commission contract-principal commission-wallet usdc-contract)
-          (ft-transfer? 'USDC finder-reward contract-principal finder usdc-contract)
+          (ft-transfer? 'USDC commission contract-principal commission-wallet usdt-contract)
+          (ft-transfer? 'USDC finder-reward contract-principal finder usdt-contract)
 
           ;; Marcar como encontrado
           (map-set posts { id: id } { owner: tx-sender, reward: reward, found: true })
 
-          ;; Mint de 50 tokens HelPet para el encontrador
-          (ft-mint? HelPet u50 finder)
+          ;; Mint de 50 tokens HelPet para el encontrador, si el contrato de HelPet está definido
+          (match (var-get helPet-contract)
+            some contract
+            (contract-call? contract mint u50 finder)
+            none (err "Contrato HelPet no asignado")
+          )
 
           (ok "Recompensa reclamada con exito")
         )
@@ -96,8 +85,7 @@
     (match post
       some-post
       (begin
-        (asserts! (or (is-eq tx-sender (get owner some-post)) (is-owner tx-sender))
-                  (err "Solo el dueno del post o el owner pueden cancelarlo"))
+        (asserts! (or (is-eq tx-sender (get owner some-post)) (is-eq tx-sender (var-get owner))) (err "Solo el dueno del post o el owner pueden cancelarlo"))
         (asserts! (not (get found some-post)) (err "El perro ya fue encontrado"))
 
         ;; Calcular la comision y el reembolso
@@ -107,8 +95,8 @@
           (refund (- reward commission))
         )
           ;; Transferir la comision y el reembolso en USDC
-          (ft-transfer? 'USDC commission contract-principal commission-wallet usdc-contract)
-          (ft-transfer? 'USDC refund contract-principal (get owner some-post) usdc-contract)
+          (ft-transfer? 'USDC commission contract-principal commission-wallet usdt-contract)
+          (ft-transfer? 'USDC refund contract-principal (get owner some-post) usdt-contract)
 
           ;; Eliminar el post
           (map-delete posts { id: id })
@@ -121,9 +109,37 @@
   )
 )
 
+;; Asignar la dirección del contrato HelPet (solo el owner puede hacerlo)
+(define-public (set-helpet-contract (contract principal))
+  (begin
+    (asserts! (is-eq tx-sender (var-get owner)) (err "Solo el owner puede asignar el contrato HelPet"))
+    (var-set helPet-contract (some contract))
+    (ok "Contrato HelPet asignado con exito")
+  )
+)
+
+;; Asignar la dirección del contrato Registrar (solo el owner puede hacerlo)
+(define-public (set-registrar-contract (contract principal))
+  (begin
+    (asserts! (is-eq tx-sender (var-get owner)) (err "Solo el owner puede asignar el contrato Registrar"))
+    (var-set registrar-contract (some contract))
+    (ok "Contrato Registrar asignado con exito")
+  )
+)
+
+;; Verificar si un usuario o empresa está registrado (se llama al contrato de registro)
+(define-read-only (is-registered (user principal))
+  (match (var-get registrar-contract)
+    some registrar
+    (contract-call? registrar is-registered user)
+    none (err "Contrato Registrar no asignado")
+  )
+)
+
 ;; Inicializacion del contrato para establecer el owner
 (define-private (initialize)
   (var-set owner tx-sender))
 
 (begin
   (initialize))
+  
