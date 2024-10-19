@@ -3,6 +3,7 @@
 
 ;; Definir variables de datos
 (define-data-var owner principal tx-sender)
+(define-data-var registrar-contract principal 'SP3AB2D5A...) ;; Reemplaza con la direccion del contrato registrar
 (define-map posts { id: uint } { owner: principal, reward: uint, found: bool })
 (define-data-var post-counter uint u1)
 
@@ -20,10 +21,26 @@
 (define-read-only (is-owner (user principal))
   (is-eq user (var-get owner)))
 
-;; Crear un nuevo post con la recompensa en USDC, solo si el monto es mayor a cero
+;; Asignar la direccion del contrato registrar (solo el owner puede hacerlo)
+(define-public (set-registrar (contract principal))
+  (begin
+    (asserts! (is-eq tx-sender (var-get owner)) (err "Solo el owner puede asignar el contrato"))
+    (var-set registrar-contract contract)
+    (ok "Registrar asignado con exito")
+  )
+)
+
+;; Crear un nuevo post con la recompensa en USDC, solo si el usuario esta registrado
 (define-public (create-post (reward uint))
   (begin
+    ;; Verificar que la recompensa sea mayor a cero
     (asserts! (> reward u0) (err "El monto de la recompensa debe ser mayor a cero"))
+
+    ;; Verificar que el usuario este registrado como usuario o empresa en el contrato registrar
+    (asserts! (contract-call? (var-get registrar-contract) is-registered tx-sender)
+              (err "El usuario no esta registrado"))
+
+    ;; Obtener el ID y crear el post
     (let ((id (var-get post-counter)))
       (map-set posts { id: id } { owner: tx-sender, reward: reward, found: false })
       (var-set post-counter (+ id u1))
@@ -44,8 +61,8 @@
     (match post
       some-post
       (begin
-        (asserts! (not (get found some-post)) (err "El perro ya fue encontrado"))
         (asserts! (is-eq tx-sender (get owner some-post)) (err "Solo el dueno del post puede marcar al perro como encontrado"))
+        (asserts! (not (get found some-post)) (err "El perro ya fue encontrado"))
 
         ;; Calcular la recompensa y la comision
         (let (
@@ -79,7 +96,8 @@
     (match post
       some-post
       (begin
-        (asserts! (is-eq tx-sender (get owner some-post)) (err "Solo el dueno del post puede cancelarlo"))
+        (asserts! (or (is-eq tx-sender (get owner some-post)) (is-owner tx-sender))
+                  (err "Solo el dueno del post o el owner pueden cancelarlo"))
         (asserts! (not (get found some-post)) (err "El perro ya fue encontrado"))
 
         ;; Calcular la comision y el reembolso
