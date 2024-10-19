@@ -14,20 +14,26 @@
   (begin
     (asserts! (is-eq tx-sender (var-get owner)) (err "Solo el owner puede agregar agentes"))
     (map-set agents agent true)
-    (ok "Agente agregado con exito")))
+    (ok "Agente agregado con éxito")))
 
 ;; Funcion para remover un agente (solo el owner puede remover)
 (define-public (remove-agent (agent principal))
   (begin
     (asserts! (is-eq tx-sender (var-get owner)) (err "Solo el owner puede remover agentes"))
     (map-delete agents agent)
-    (ok "Agente removido con exito")))
+    (ok "Agente removido con éxito")))
 
 ;; Funcion para mintear tokens HelPet (solo agentes autorizados pueden mintear)
 (define-public (mint (amount uint))
   (begin
-    (asserts! (is-agent tx-sender) (err u403))
+    (asserts! (is-agent tx-sender) (err "Solo agentes pueden mintear"))
     (ft-mint? HelPet amount tx-sender)))
+
+;; Funcion para quemar tokens HelPet (solo agentes autorizados pueden quemar)
+(define-public (burn (amount uint))
+  (begin
+    (asserts! (is-agent tx-sender) (err "Solo agentes pueden quemar tokens"))
+    (ft-burn? HelPet amount tx-sender)))
 
 ;; Funcion de inicializacion para transferir el control del contrato al owner
 (define-private (initialize)
