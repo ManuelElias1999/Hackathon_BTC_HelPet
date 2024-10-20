@@ -9,7 +9,7 @@
 (define-data-var post-counter uint u1)
 
 ;; Direccion del contrato de sUSDT
-(define-constant usdt-contract '0x9726cd7b0e1be8ce4fd749983716ad6aaf98611fb5554ffde61b6ace78c035e6')
+(define-constant usdt-contract 'SP2XD7417HGPRTREMKF748VNEQPDRR0RMANB7X1NK.token-susdt')
 
 ;; Wallet de comision
 (define-constant commission-wallet 'ST1FSFVBJ5GTF24MP99P9RPQ34Q42VWES78PCNTQT)

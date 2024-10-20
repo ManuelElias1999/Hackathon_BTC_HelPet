@@ -5,12 +5,37 @@ authors = []
 telemetry = true
 cache_dir = './.cache'
 requirements = []
+[contracts.buscoA]
+path = 'contracts/buscoA.clar'
+clarity_version = 2
+epoch = 2.5
+
+[contracts.canjear]
+path = 'contracts/canjear.clar'
+clarity_version = 2
+epoch = 2.5
+
+[contracts.donaA]
+path = 'contracts/donaA.clar'
+clarity_version = 2
+epoch = 2.5
+
 [contracts.my-contract]
-path = 'contracts/my-contract.clar'
+path = 'contracts/'
+clarity_version = 2
+epoch = 2.5
+
+[contracts.registrar]
+path = 'contracts/registrar.clar'
+clarity_version = 2
+epoch = 2.5
+
+[contracts.tokenHelPet]
+path = 'contracts/tokenHelPet.clar'
 clarity_version = 2
 epoch = 2.5
 [repl.analysis]
-passes = ['check_checker']
+passes = []
 
 [repl.analysis.check_checker]
 strict = false
