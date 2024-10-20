@@ -29,10 +29,10 @@
 ;; Funcion para cancelar una donacion (solo el creador o el owner pueden cerrarla)
 (define-public (close-donation (donation-id uint))
   (begin
-    (let ((donation (map-get donations donation-id)))
+    (let ((donation (map-get? donations donation-id)))
       ;; Verificar que la donacion existe
       (asserts! (is-some donation) (err "ID de donacion no existe"))
-      (let ((donation-details (unwrap donation)))
+      (let ((donation-details (unwrap-panic donation)))
         ;; Verificar que el que cierra es el creador o el owner
         (asserts! (or (is-eq tx-sender (get creator donation-details))
                        (is-eq tx-sender (var-get owner))) (err "Solo el creador o owner pueden cerrar la donacion"))
@@ -43,23 +43,23 @@
 ;; Funcion para realizar una donacion
 (define-public (donate (donation-id uint) (amount uint))
   (begin
-    (let ((donation (map-get donations donation-id)))
+    (let ((donation (map-get? donations donation-id)))
       ;; Verificar que la donacion este abierta
-      (asserts! (and (is-some donation) (get status (unwrap donation))) (err "La donacion no esta abierta"))
+      (asserts! (and (is-some donation) (get status (unwrap-panic donation))) (err u0))
       
       ;; Transferir el monto de la donacion
-      (ft-transfer? HelPet amount (get creator (unwrap donation)))
+      (try! (ft-transfer? HelPet amount tx-sender (get creator (unwrap-panic donation))))
       
-      ;; Transferir 3% a la wallet de comision
-      (let ((commission (* amount 3/100)))
-        (ft-transfer? HelPet commission commission-wallet))
+      ;; Calcular y transferir 3% a la wallet de comision
+      (let ((commission (/ (* amount u3) u100)))
+        (try! (ft-transfer? HelPet commission tx-sender commission-wallet)))
       
-      ;; Transferir 50 tokens HelPet al donante
-      (ft-transfer? HelPet 50 tx-sender)
+      ;; Transferir 50 tokens HelPet al donante desde el contrato
+      (try! (ft-transfer? HelPet u50 (as-contract tx-sender) tx-sender))
       
-      (ok "Donacion realizada exitosamente"))))
+      (ok amount))))
 
-;; Asignar la dirección del contrato HelPet (solo el owner puede hacerlo)
+;; Asignar la direccion del contrato HelPet (solo el owner puede hacerlo)
 (define-public (set-helpet-contract (contract principal))
   (begin
     (asserts! (is-eq tx-sender (var-get owner)) (err "Solo el owner puede asignar el contrato HelPet"))
@@ -68,7 +68,7 @@
   )
 )
 
-;; Asignar la dirección del contrato Registrar (solo el owner puede hacerlo)
+;; Asignar la direccion del contrato Registrar (solo el owner puede hacerlo)
 (define-public (set-registrar-contract (contract principal))
   (begin
     (asserts! (is-eq tx-sender (var-get owner)) (err "Solo el owner puede asignar el contrato Registrar"))

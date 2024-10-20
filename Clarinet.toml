@@ -20,11 +20,6 @@ path = 'contracts/donaA.clar'
 clarity_version = 2
 epoch = 2.5
 
-[contracts.my-contract]
-path = 'contracts/'
-clarity_version = 2
-epoch = 2.5
-
 [contracts.registrar]
 path = 'contracts/registrar.clar'
 clarity_version = 2

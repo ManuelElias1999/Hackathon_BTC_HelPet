@@ -35,41 +35,43 @@
 
 ;; Funcion para canjear un producto
 (define-public (canjear (product-id uint))
-  (begin
-    ;; Verificar que el producto existe
-    (let ((product (map-get products product-id)))
-      (asserts! (is-some product) (err "ID de producto no existe"))
-      (let ((product-details (unwrap product)))
-        ;; Verificar si hay stock disponible
-        (asserts! (> (get stock product-details) u0) (err "No hay stock disponible"))
+  (let ((product (map-get? products product-id)))
+    (asserts! (is-some product) (err "ID de producto no existe"))
+    (let ((product-details (unwrap-panic product)))
+      ;; Verificar si hay stock disponible
+      (asserts! (> (get stock product-details) u0) (err "No hay stock disponible"))
 
-        ;; Obtener el precio del producto
-        (let ((price (get price product-details)))
-          ;; Verificar que el usuario ha transferido suficientes tokens HelPet
-          (asserts! (>= (unwrap (ft-get-balance? HelPet tx-sender)) price) (err "No tienes suficientes tokens HelPet"))
+      ;; Obtener el precio del producto
+      (let ((price (get price product-details)))
+        ;; Verificar que el usuario ha transferido suficientes tokens HelPet
+        (asserts! (>= (ft-get-balance HelPet tx-sender) price) (err "No tienes suficientes tokens HelPet"))
 
-          ;; Transferir los tokens HelPet al contrato para su quema
-          (ft-transfer? HelPet price tx-sender (var-get helPet-contract))
+        ;; Transferir los tokens HelPet al contrato para su quema
+        (match (ft-transfer? HelPet price tx-sender (unwrap-panic (var-get helPet-contract)))
+          transfer-success
+            (begin
+              ;; Quemar los tokens HelPet que se han transferido al contrato
+              (match (ft-burn? HelPet price (unwrap-panic (var-get helPet-contract)))
+                burn-success
+                  (begin
+                    ;; Descontar el stock del producto
+                    (map-set products product-id { creator: (get creator product-details), stock: (- (get stock product-details) u1), price: price })
+                    ;; Retornar el mensaje de exito
+                    (ok "Producto canjeado exitosamente"))
+                burn-error (err "Error al quemar tokens"))
+              (ok "Producto canjeado exitosamente"))
+          transfer-error (err "Error al transferir tokens")))))
 
-          ;; Quemar los tokens HelPet que se han transferido al contrato
-          (ft-burn? HelPet price (var-get helPet-contract))
-
-          ;; Descontar el stock del producto
-          (map-set products product-id { creator: (get creator product-details), stock: (- (get stock product-details) u1), price: price })
-
-          ;; Retornar el mensaje de éxito
-          (ok "Producto canjeado exitosamente"))))))
-
-;; Asignar la dirección del contrato HelPet (solo el owner puede hacerlo)
+;; Asignar la direccion del contrato HelPet (solo el owner puede hacerlo)
 (define-public (set-helpet-contract (contract principal))
   (begin
     (asserts! (is-eq tx-sender (var-get owner)) (err "Solo el owner puede asignar el contrato HelPet"))
     (var-set helPet-contract (some contract))
-    (ok "Contrato HelPet asignado con éxito")))
+    (ok "Contrato HelPet asignado con exito")))
 
-;; Asignar la dirección del contrato Registrar (solo el owner puede hacerlo)
+;; Asignar la direccion del contrato Registrar (solo el owner puede hacerlo)
 (define-public (set-registrar-contract (contract principal))
   (begin
     (asserts! (is-eq tx-sender (var-get owner)) (err "Solo el owner puede asignar el contrato Registrar"))
     (var-set registrar-contract (some contract))
-    (ok "Contrato Registrar asignado con éxito")))
+    (ok "Contrato Registrar asignado con exito")))
